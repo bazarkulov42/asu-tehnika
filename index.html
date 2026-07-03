@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>АСУ «Техника» — учёт и контроль техники компании</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --primary:#2563eb;
+  --primary-dark:#1d4ed8;
+  --bg:#f4f6f9;
+  --sidebar-bg:#101828;
+  --sidebar-text:#cbd5e1;
+  --sidebar-active:#1e2b45;
+  --card-bg:#ffffff;
+  --border:#e2e8f0;
+  --text:#1e293b;
+  --muted:#64748b;
+  --success:#16a34a;
+  --warning:#d97706;
+  --danger:#dc2626;
+  --info:#0891b2;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  font-size:14px;
+}
+a{color:var(--primary);}
+button{font-family:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;font-size:14px;}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+
+.app{display:flex;height:100vh;overflow:hidden;}
+
+/* Sidebar */
+.sidebar{
+  width:290px;flex-shrink:0;background:var(--sidebar-bg);color:var(--sidebar-text);
+  display:flex;flex-direction:column;overflow-y:auto;transition:transform .25s ease;z-index:50;
+}
+.sidebar-header{padding:18px 16px 10px;border-bottom:1px solid rgba(255,255,255,.08);}
+.sidebar-header .logo{font-size:16px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px;}
+.sidebar-header .logo span.badge{background:var(--primary);color:#fff;border-radius:6px;padding:2px 6px;font-size:11px;}
+.tree-search{margin:10px 16px;position:relative;}
+.tree-search input{
+  width:100%;padding:8px 10px 8px 30px;border-radius:8px;border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.06);color:#fff;
+}
+.tree-search input::placeholder{color:#8896ab;}
+.tree-search::before{content:"🔍";position:absolute;left:9px;top:8px;font-size:12px;opacity:.7;}
+.tree{list-style:none;margin:0;padding:6px 8px 20px;}
+.tree ul{list-style:none;margin:0;padding-left:14px;}
+.tree-node{margin:1px 0;}
+.tree-row{
+  display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:8px;cursor:pointer;
+  color:var(--sidebar-text);user-select:none;
+}
+.tree-row:hover{background:rgba(255,255,255,.06);}
+.tree-row.active{background:var(--primary);color:#fff;}
+.tree-row .caret{width:14px;display:inline-block;font-size:10px;transition:transform .15s;opacity:.7;}
+.tree-row .caret.open{transform:rotate(90deg);}
+.tree-row .icon{width:16px;text-align:center;}
+.tree-row .label{flex:1;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tree-row .count{
+  background:rgba(255,255,255,.12);color:#cbd5e1;border-radius:20px;padding:1px 8px;font-size:11.5px;
+}
+.tree-row.active .count{background:rgba(255,255,255,.25);color:#fff;}
+.tree-children{display:none;}
+.tree-children.open{display:block;}
+
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+.topbar{
+  display:flex;align-items:center;gap:12px;padding:12px 22px;background:var(--card-bg);
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.hamburger{display:none;background:none;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:16px;}
+.topbar h1{font-size:17px;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.btn{
+  border:1px solid var(--border);background:#fff;color:var(--text);padding:8px 14px;border-radius:8px;
+  font-size:13.5px;font-weight:500;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+}
+.btn:hover{background:#f1f5f9;}
+.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary);}
+.btn-primary:hover{background:var(--primary-dark);}
+.btn-danger{color:var(--danger);border-color:#fecaca;}
+.btn-danger:hover{background:#fef2f2;}
+.btn-sm{padding:5px 10px;font-size:12.5px;}
+.content{flex:1;overflow-y:auto;padding:22px;}
+.backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40;}
+
+h2.page-title{font-size:20px;margin:0 0 4px;}
+p.page-sub{color:var(--muted);margin:0 0 18px;font-size:13.5px;}
+
+/* Cards / grid */
+.grid{display:grid;gap:16px;}
+.grid-kpi{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));}
+.grid-2{grid-template-columns:repeat(auto-fit,minmax(360px,1fr));}
+.card{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:18px;}
+.kpi-card .kpi-label{color:var(--muted);font-size:12.5px;margin-bottom:6px;}
+.kpi-card .kpi-value{font-size:26px;font-weight:700;}
+.kpi-card .kpi-sub{font-size:12px;color:var(--muted);margin-top:4px;}
+.kpi-total{border-top:3px solid var(--primary);}
+.kpi-stock{border-top:3px solid var(--info);}
+.kpi-issued{border-top:3px solid var(--success);}
+.kpi-repair{border-top:3px solid var(--warning);}
+.kpi-writeoff{border-top:3px solid var(--danger);}
+.card h3{margin:0 0 12px;font-size:15px;}
+.chart-wrap{position:relative;height:280px;}
+.chart-wrap.short{height:220px;}
+
+/* Table */
+table{width:100%;border-collapse:collapse;font-size:13.5px;}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);}
+th{color:var(--muted);font-weight:600;font-size:12.5px;text-transform:uppercase;letter-spacing:.02em;}
+tr.clickable{cursor:pointer;}
+tr.clickable:hover{background:#f8fafc;}
+.table-wrap{overflow-x:auto;}
+
+.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600;}
+.badge-stock{background:#e0f2fe;color:#075985;}
+.badge-issued{background:#dcfce7;color:#166534;}
+.badge-repair{background:#fef3c7;color:#92400e;}
+.badge-writeoff{background:#fee2e2;color:#991b1b;}
+.badge-mol{background:#ede9fe;color:#5b21b6;}
+
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;align-items:center;}
+.toolbar input[type=text],.toolbar input[type=date],.toolbar select{
+  padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;min-width:160px;
+}
+.toolbar .grow{flex:1;min-width:220px;}
+
+.accordion-item{border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;background:#fff;}
+.accordion-head{display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;}
+.accordion-head:hover{background:#f8fafc;}
+.accordion-head .caret{transition:transform .15s;opacity:.6;}
+.accordion-head .caret.open{transform:rotate(90deg);}
+.accordion-head .title{font-weight:600;flex:1;}
+.accordion-body{display:none;padding:0 16px 14px;}
+.accordion-body.open{display:block;}
+
+.feed-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.feed-item:last-child{border-bottom:none;}
+.feed-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;}
+.feed-text b{font-weight:600;}
+.feed-date{color:var(--muted);font-size:11.5px;}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:100;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;}
+.modal-overlay.open{display:flex;}
+.modal{background:#fff;border-radius:14px;max-width:640px;width:100%;padding:0;box-shadow:0 20px 50px rgba(0,0,0,.25);}
+.modal-header{display:flex;align-items:center;padding:18px 22px;border-bottom:1px solid var(--border);}
+.modal-header h3{margin:0;flex:1;font-size:17px;}
+.modal-close{background:none;border:none;font-size:20px;color:var(--muted);padding:4px 8px;}
+.modal-body{padding:20px 22px;max-height:70vh;overflow-y:auto;}
+.modal-footer{padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;}
+
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.form-field{display:flex;flex-direction:column;gap:5px;}
+.form-field.full{grid-column:1/-1;}
+.form-field label{font-size:12.5px;font-weight:600;color:var(--muted);}
+.form-field input,.form-field select,.form-field textarea{
+  padding:9px 10px;border:1px solid var(--border);border-radius:8px;width:100%;
+}
+.form-field .readonly-note{font-size:12.5px;color:var(--muted);padding:9px 0;}
+.form-radio-group{display:flex;gap:14px;flex-wrap:wrap;grid-column:1/-1;}
+.form-radio-group label{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:500;}
+
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;margin-bottom:18px;}
+.detail-grid .d-label{font-size:12px;color:var(--muted);}
+.detail-grid .d-value{font-weight:600;}
+
+.timeline{list-style:none;margin:0;padding:0;border-left:2px solid var(--border);}
+.timeline li{position:relative;padding:0 0 18px 20px;}
+.timeline li:last-child{padding-bottom:0;}
+.timeline li::before{content:"";position:absolute;left:-7px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--primary);border:2px solid #fff;box-shadow:0 0 0 1px var(--border);}
+.timeline .t-date{font-size:11.5px;color:var(--muted);}
+.timeline .t-title{font-weight:600;font-size:13.5px;margin:2px 0;}
+.timeline .t-desc{font-size:12.5px;color:var(--muted);}
+
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted);}
+.pagination{display:flex;justify-content:center;align-items:center;gap:12px;margin-top:14px;}
+.toast{position:fixed;bottom:20px;right:20px;background:#111827;color:#fff;padding:12px 18px;border-radius:10px;font-size:13.5px;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:200;opacity:0;transform:translateY(10px);transition:.25s;pointer-events:none;}
+.toast.show{opacity:1;transform:translateY(0);}
+
+@media (max-width:900px){
+  .sidebar{position:fixed;top:0;bottom:0;left:0;transform:translateX(-100%);width:280px;}
+  .sidebar.open{transform:translateX(0);}
+  .hamburger{display:inline-flex;align-items:center;justify-content:center;}
+  .backdrop.open{display:block;}
+  .form-grid{grid-template-columns:1fr;}
+  .detail-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="backdrop" id="backdrop"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">🖥️ АСУ «Техника» <span class="badge">MVP</span></div>
+    </div>
+    <div class="tree-search">
+      <input type="text" id="treeSearch" placeholder="Поиск по разделам…">
+    </div>
+    <nav id="treeRoot" class="tree"></nav>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="hamburger" id="hamburgerBtn" aria-label="Меню">☰</button>
+      <h1 id="pageHeaderTitle">Дашборд</h1>
+      <button class="btn" id="exportRegistryBtn">⬇ Экспорт реестра (CSV)</button>
+    </header>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================= CONSTANTS ============================= */
+const CATEGORIES = [
+  {key:'laptop', label:'Ноутбуки', icon:'💻'},
+  {key:'pc', label:'Стационарные ПК', icon:'🖥️'},
+  {key:'monitor', label:'Мониторы', icon:'🖵'},
+  {key:'printer', label:'Принтеры и МФУ', icon:'🖨️'},
+  {key:'phone', label:'Мобильные телефоны', icon:'📱'},
+  {key:'network', label:'Сетевое оборудование', icon:'📶'},
+  {key:'peripheral', label:'Периферия', icon:'⌨️'},
+  {key:'server', label:'Серверное оборудование', icon:'🗄️'},
+];
+const CAT_LABEL = Object.fromEntries(CATEGORIES.map(c=>[c.key,c.label]));
+
+const STATUS = {
+  in_stock:{label:'На складе', badge:'badge-stock'},
+  issued:{label:'Выдана', badge:'badge-issued'},
+  repair:{label:'В ремонте', badge:'badge-repair'},
+  writeoff:{label:'Списана', badge:'badge-writeoff'},
+};
+
+const MOVEMENT_TYPE = {
+  receive:{label:'Приём', color:'#2563eb'},
+  issue:{label:'Выдача', color:'#16a34a'},
+  return:{label:'Возврат', color:'#0891b2'},
+  repair_out:{label:'Передача в ремонт', color:'#d97706'},
+  writeoff:{label:'Списание', color:'#dc2626'},
+};
+
+const DEPTS = ['ИТ-отдел','Бухгалтерия','Отдел продаж','Маркетинг','HR','Юридический отдел','Логистика','Производство','Финансовый отдел'];
+
+const STORAGE_KEY = 'asu_technika_v1';
+
+/* ============================= STATE ============================= */
+let DB = null;
+let route = {view:'dashboard', params:{}};
+let treeOpenState = {registry:true};
+let treeSearchTerm = '';
+let historyPage = 1;
+const HISTORY_PAGE_SIZE = 10;
+const chartInstances = {};
+
+/* ============================= UTIL ============================= */
+function uid(prefix){ return prefix+'_'+Math.random().toString(36).slice(2,9); }
+function pad2(n){ return n<10?'0'+n:''+n; }
+function formatDate(iso){
+  if(!iso) return '—';
+  const d = new Date(iso+'T00:00:00');
+  if(isNaN(d)) return iso;
+  return `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear()}`;
+}
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function isoDaysAgo(days){
+  const d = new Date(); d.setDate(d.getDate()-days);
+  return d.toISOString().slice(0,10);
+}
+function formatMoney(n){
+  return Math.round(n).toLocaleString('ru-RU')+' ₸';
+}
+function ageYears(iso){
+  const d = new Date(iso+'T00:00:00');
+  return (Date.now()-d.getTime())/(1000*3600*24*365.25);
+}
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+function randChoice(arr){ return arr[randInt(0,arr.length-1)]; }
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>el.classList.remove('show'), 2400);
+}
+function getUser(id){ return DB.users.find(u=>u.id===id); }
+function getEquip(id){ return DB.equipment.find(e=>e.id===id); }
+function userName(id){ const u=getUser(id); return u? u.name : '—'; }
+
+/* ============================= SEED DATA ============================= */
+function seedData(){
+  const users = [];
+  const mols = [
+    {name:'Ахметов Данияр Серикович', position:'Инженер по учёту техники'},
+    {name:'Сергеева Ольга Владимировна', position:'Ведущий специалист ИТ'},
+    {name:'Тулегенов Марат Болатович', position:'Специалист ИТ-поддержки'},
+  ];
+  mols.forEach(m=> users.push({id:uid('u'), name:m.name, dept:'ИТ-отдел', position:m.position, isMol:true}));
+
+  const regularNames = [
+    ['Иванова Алия Муратовна','Бухгалтер'],['Петров Сергей Иванович','Менеджер по продажам'],
+    ['Смагулова Динара Ержановна','Маркетолог'],['Ким Виктория Сергеевна','HR-специалист'],
+    ['Нурланов Ерлан Асхатович','Юрист'],['Ким Александр Игоревич','Логист'],
+    ['Оспанова Жанна Талгатовна','Специалист по закупкам'],['Волков Дмитрий Олегович','Инженер производства'],
+    ['Байжанова Гульнара Кайратовна','Финансовый аналитик'],['Егоров Павел Николаевич','Менеджер по продажам'],
+    ['Садыкова Айгерим Нурлановна','Бухгалтер'],['Ли Роман Денисович','Специалист логистики'],
+    ['Тлеубердиева Асель Максатовна','HR-менеджер'],['Кузнецов Артём Викторович','Инженер производства'],
+    ['Жумабекова Салтанат Ерболовна','Маркетолог'],['Морозов Игорь Андреевич','Юрист'],
+  ];
+  regularNames.forEach(([name,position])=>{
+    users.push({id:uid('u'), name, dept:randChoice(DEPTS.filter(d=>d!=='ИТ-отдел')), position, isMol:false});
+  });
+
+  const molIds = users.filter(u=>u.isMol).map(u=>u.id);
+  const nonMolIds = users.filter(u=>!u.isMol).map(u=>u.id);
+
+  const MODELS = {
+    laptop:['Dell Latitude 5420','HP ProBook 450 G8','Lenovo ThinkPad E14','Asus ExpertBook B1','Acer TravelMate P2'],
+    pc:['Dell OptiPlex 3080','HP ProDesk 400 G7','Lenovo ThinkCentre M720','Acer Veriton X'],
+    monitor:['Dell P2422H 24"','Samsung S24R350 24"','LG 24MK430H 24"','Philips 243V7Q'],
+    printer:['HP LaserJet Pro M404dn','Canon i-SENSYS MF445dw','Kyocera ECOSYS M2040dn'],
+    phone:['iPhone 13','Samsung Galaxy A54','Xiaomi Redmi Note 12','Honor X8'],
+    network:['Cisco Catalyst 2960','MikroTik hEX S','TP-Link TL-SG1024D','Ubiquiti UniFi AP AC'],
+    peripheral:['Logitech MX Master 3','Клавиатура A4Tech KV-300','Веб-камера Logitech C920','Мышь Genius DX-110'],
+    server:['Dell PowerEdge R440','HPE ProLiant DL380 Gen10','Supermicro SuperServer 1029P'],
+  };
+
+  const equipment = [];
+  const movements = [];
+  let invCounter = 1000;
+
+  CATEGORIES.forEach(cat=>{
+    const models = MODELS[cat.key];
+    const count = randInt(5,7);
+    for(let i=0;i<count;i++){
+      const id = uid('eq');
+      const model = randChoice(models);
+      const molId = randChoice(molIds);
+      const purchaseDaysAgo = randInt(20, 1400);
+      const purchaseDate = isoDaysAgo(purchaseDaysAgo);
+      const cost = randInt(60000, 850000);
+      const serial = `SN-${cat.key.toUpperCase()}-${randInt(10000,99999)}`;
+      const inv = `INV-${new Date(purchaseDate).getFullYear()}-${invCounter++}`;
+
+      const scenario = randChoice(['stock','stock','issued','issued','issued','repair','writeoff']);
+      const eq = {id, category:cat.key, name:model, serial, inv, cost, purchaseDate, status:'in_stock', userId:null, molId};
+
+      movements.push({
+        id:uid('mv'), equipId:id, type:'receive', date:purchaseDate,
+        from:'Поставщик', to:'Склад', molId, userId:null, comment:'Новое поступление на склад'
+      });
+
+      if(scenario!=='stock'){
+        const issueDaysAgo = randInt(1, purchaseDaysAgo-5>0?purchaseDaysAgo-5:1);
+        const issueDate = isoDaysAgo(issueDaysAgo);
+        const empId = randChoice(nonMolIds);
+        eq.status='issued'; eq.userId=empId;
+        movements.push({
+          id:uid('mv'), equipId:id, type:'issue', date:issueDate,
+          from:'Склад', to:userNameSeed(users,empId), molId, userId:empId, comment:'Выдача сотруднику'
+        });
+
+        if(scenario==='repair'){
+          const repairDaysAgo = randInt(1, issueDaysAgo>3?issueDaysAgo-2:1);
+          eq.status='repair';
+          movements.push({
+            id:uid('mv'), equipId:id, type:'repair_out', date:isoDaysAgo(repairDaysAgo),
+            from:userNameSeed(users,empId), to:'Сервисный центр', molId, userId:empId, comment:'Неисправность, передача в ремонт'
+          });
+          eq.userId=null;
+        } else if(scenario==='writeoff'){
+          const retDaysAgo = randInt(1, issueDaysAgo>2?issueDaysAgo-1:1);
+          movements.push({
+            id:uid('mv'), equipId:id, type:'return', date:isoDaysAgo(retDaysAgo),
+            from:userNameSeed(users,empId), to:'Склад', molId, userId:empId, comment:'Возврат на склад'
+          });
+          const woDaysAgo = randInt(0, retDaysAgo>1?retDaysAgo-1:0);
+          eq.status='writeoff'; eq.userId=null;
+          movements.push({
+            id:uid('mv'), equipId:id, type:'writeoff', date:isoDaysAgo(woDaysAgo),
+            from:'Склад', to:'Списано', molId, userId:null, comment:'Физический износ, списание'
+          });
+        }
+      }
+      equipment.push(eq);
+    }
+  });
+
+  movements.sort((a,b)=> new Date(a.date)-new Date(b.date));
+  return {users, equipment, movements};
+}
+function userNameSeed(users,id){ const u=users.find(x=>x.id===id); return u?u.name:'—'; }
+
+function loadDB(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(raw){
+    try{ DB = JSON.parse(raw); return; }catch(e){ /* fallthrough to reseed */ }
+  }
+  DB = seedData();
+  saveDB();
+}
+function saveDB(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }
+
+/* ============================= CSV EXPORT ============================= */
+function downloadCSV(filename, rows){
+  const csv = rows.map(r=> r.map(cell=>{
+    let s = cell==null?'':String(cell);
+    if(/[";\n,]/.test(s)) s = '"'+s.replace(/"/g,'""')+'"';
+    return s;
+  }).join(';')).join('\r\n');
+  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function exportRegistryCSV(){
+  const rows = [['Категория','Модель','Серийный номер','Инв. номер','Статус','Стоимость','Дата приёма','Пользователь','МОЛ']];
+  DB.equipment.forEach(e=>{
+    rows.push([CAT_LABEL[e.category], e.name, e.serial, e.inv, STATUS[e.status].label, e.cost, formatDate(e.purchaseDate), e.userId?userName(e.userId):'', userName(e.molId)]);
+  });
+  downloadCSV('reestr_tehniki.csv', rows);
+  toast('Реестр выгружен в CSV');
+}
+function exportMovementsCSV(){
+  const rows = [['Дата','Тип операции','Модель','Серийный номер','Откуда','Куда','МОЛ','Комментарий']];
+  [...DB.movements].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(m=>{
+    const eq = getEquip(m.equipId);
+    rows.push([formatDate(m.date), MOVEMENT_TYPE[m.type].label, eq?eq.name:'—', eq?eq.serial:'—', m.from, m.to, userName(m.molId), m.comment||'']);
+  });
+  downloadCSV('otchet_dvizhenie_tehniki.csv', rows);
+  toast('Отчёт по движению выгружен в CSV');
+}
+
+/* ============================= ROUTER / TREE ============================= */
+function navigate(view, params={}){
+  route = {view, params};
+  historyPage = 1;
+  closeModal();
+  render();
+  if(window.innerWidth<=900) closeSidebar();
+}
+
+function equipCountByCategory(catKey){ return DB.equipment.filter(e=>e.category===catKey && e.status!=='writeoff').length; }
+
+const TREE_DEF = [
+  {key:'dashboard', label:'Дашборд', icon:'📊'},
+  {key:'registry', label:'Реестр техники', icon:'🗂️', children: CATEGORIES.map(c=>({key:'registry-'+c.key, label:c.label, icon:c.icon, catKey:c.key}))},
+  {key:'warehouse', label:'Склад', icon:'📦', children:[
+    {key:'warehouse-receive', label:'Приём на склад', icon:'⬇️'},
+    {key:'warehouse-issue', label:'Выдача со склада', icon:'⬆️'},
+  ]},
+  {key:'history', label:'История передвижений', icon:'🕘'},
+  {key:'peopleroot', label:'Пользователи и МОЛ', icon:'👥', children:[
+    {key:'users-list', label:'Пользователи техники', icon:'🧑'},
+    {key:'users-mol', label:'Материально ответственные лица', icon:'🛡️'},
+  ]},
+  {key:'analytics', label:'Аналитика и отчёты', icon:'📈'},
+];
+
+function nodeCount(node){
+  if(node.catKey) return equipCountByCategory(node.catKey);
+  if(node.key==='registry') return DB.equipment.filter(e=>e.status!=='writeoff').length;
+  if(node.key==='warehouse-receive'||node.key==='warehouse-issue') return null;
+  if(node.key==='history') return DB.movements.length;
+  if(node.key==='users-list') return DB.users.length;
+  if(node.key==='users-mol') return DB.users.filter(u=>u.isMol).length;
+  if(node.key==='analytics') return null;
+  if(node.key==='dashboard') return null;
+  return null;
+}
+
+function matchesSearch(node, term){
+  if(!term) return true;
+  if(node.label.toLowerCase().includes(term)) return true;
+  if(node.children) return node.children.some(c=>matchesSearch(c,term));
+  return false;
+}
+
+function renderTreeNode(node, depth){
+  const term = treeSearchTerm.trim().toLowerCase();
+  if(!matchesSearch(node, term)) return '';
+  const hasChildren = !!node.children;
+  const isOpen = term ? true : !!treeOpenState[node.key];
+  const active = route.view===node.key;
+  const count = nodeCount(node);
+  let html = `<li class="tree-node">
+    <div class="tree-row ${active?'active':''}" data-tree-key="${node.key}" data-has-children="${hasChildren}">
+      ${hasChildren?`<span class="caret ${isOpen?'open':''}">▶</span>`:'<span class="caret" style="visibility:hidden">▶</span>'}
+      <span class="icon">${node.icon||''}</span>
+      <span class="label">${escapeHtml(node.label)}</span>
+      ${count!=null?`<span class="count">${count}</span>`:''}
+    </div>`;
+  if(hasChildren){
+    html += `<ul class="tree-children ${isOpen?'open':''}" data-children-of="${node.key}">`;
+    node.children.forEach(c=> html += renderTreeNode(c, depth+1));
+    html += `</ul>`;
+  }
+  html += `</li>`;
+  return html;
+}
+
+function renderTree(){
+  document.getElementById('treeRoot').innerHTML = `<ul class="tree" style="padding:0;margin:0;">${TREE_DEF.map(n=>renderTreeNode(n,0)).join('')}</ul>`;
+}
+
+/* ============================= SIDEBAR / MOBILE ============================= */
+function openSidebar(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('backdrop').classList.add('open'); }
+function closeSidebar(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('backdrop').classList.remove('open'); }
+
+/* ============================= MODAL ============================= */
+function openModal(html){
+  document.getElementById('modalBox').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.getElementById('modalBox').innerHTML = '';
+}
+
+/* ============================= RENDER: DASHBOARD ============================= */
+function renderDashboard(){
+  const total = DB.equipment.length;
+  const active = DB.equipment.filter(e=>e.status!=='writeoff');
+  const byStatus = {in_stock:0,issued:0,repair:0,writeoff:0};
+  DB.equipment.forEach(e=> byStatus[e.status]++);
+  const pct = n => total? Math.round(n/total*100) : 0;
+
+  const html = `
+  <h2 class="page-title">Дашборд</h2>
+  <p class="page-sub">Общая картина по парку техники компании в реальном времени</p>
+  <div class="grid grid-kpi" style="margin-bottom:20px;">
+    <div class="card kpi-card kpi-total"><div class="kpi-label">Всего техники</div><div class="kpi-value">${total}</div><div class="kpi-sub">100%</div></div>
+    <div class="card kpi-card kpi-stock"><div class="kpi-label">На складе</div><div class="kpi-value">${byStatus.in_stock}</div><div class="kpi-sub">${pct(byStatus.in_stock)}%</div></div>
+    <div class="card kpi-card kpi-issued"><div class="kpi-label">Выдано</div><div class="kpi-value">${byStatus.issued}</div><div class="kpi-sub">${pct(byStatus.issued)}%</div></div>
+    <div class="card kpi-card kpi-repair"><div class="kpi-label">В ремонте</div><div class="kpi-value">${byStatus.repair}</div><div class="kpi-sub">${pct(byStatus.repair)}%</div></div>
+    <div class="card kpi-card kpi-writeoff"><div class="kpi-label">Списано</div><div class="kpi-value">${byStatus.writeoff}</div><div class="kpi-sub">${pct(byStatus.writeoff)}%</div></div>
+  </div>
+  <div class="grid grid-2" style="margin-bottom:16px;">
+    <div class="card"><h3>Движение техники по месяцам</h3><div class="chart-wrap"><canvas id="chartMonthly"></canvas></div></div>
+    <div class="card"><h3>Распределение по категориям</h3><div class="chart-wrap"><canvas id="chartCategory"></canvas></div></div>
+  </div>
+  <div class="grid grid-2" style="margin-bottom:16px;">
+    <div class="card"><h3>Распределение по статусам</h3><div class="chart-wrap short"><canvas id="chartStatus"></canvas></div></div>
+    <div class="card"><h3>Техника по подразделениям</h3><div class="chart-wrap short"><canvas id="chartDept"></canvas></div></div>
+  </div>
+  <div class="card">
+    <h3>Последние операции</h3>
+    <div id="recentFeed"></div>
+  </div>`;
+  document.getElementById('content').innerHTML = html;
+
+  // monthly chart: last 12 months, count receive & issue
+  const months = [];
+  for(let i=11;i>=0;i--){
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-i);
+    months.push({y:d.getFullYear(), m:d.getMonth(), label:d.toLocaleDateString('ru-RU',{month:'short',year:'2-digit'})});
+  }
+  const receiveCounts = months.map(mo=> DB.movements.filter(mv=>{
+    const d = new Date(mv.date); return mv.type==='receive' && d.getFullYear()===mo.y && d.getMonth()===mo.m;
+  }).length);
+  const issueCounts = months.map(mo=> DB.movements.filter(mv=>{
+    const d = new Date(mv.date); return mv.type==='issue' && d.getFullYear()===mo.y && d.getMonth()===mo.m;
+  }).length);
+
+  makeChart('chartMonthly','bar',{
+    labels: months.map(m=>m.label),
+    datasets:[
+      {label:'Приём', data:receiveCounts, backgroundColor:'#2563eb'},
+      {label:'Выдача', data:issueCounts, backgroundColor:'#16a34a'},
+    ]
+  },{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,ticks:{precision:0}}}});
+
+  makeChart('chartCategory','doughnut',{
+    labels: CATEGORIES.map(c=>c.label),
+    datasets:[{data: CATEGORIES.map(c=>equipCountByCategory(c.key)), backgroundColor:['#2563eb','#16a34a','#d97706','#dc2626','#0891b2','#7c3aed','#db2777','#059669']}]
+  },{responsive:true,maintainAspectRatio:false});
+
+  makeChart('chartStatus','bar',{
+    labels:[STATUS.in_stock.label,STATUS.issued.label,STATUS.repair.label,STATUS.writeoff.label],
+    datasets:[{data:[byStatus.in_stock,byStatus.issued,byStatus.repair,byStatus.writeoff], backgroundColor:['#0891b2','#16a34a','#d97706','#dc2626']}]
+  },{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0}}}});
+
+  const deptCounts = {};
+  active.forEach(e=>{
+    const owner = e.status==='issued' && e.userId ? getUser(e.userId) : getUser(e.molId);
+    const dept = owner? owner.dept : 'Не указано';
+    deptCounts[dept] = (deptCounts[dept]||0)+1;
+  });
+  const deptEntries = Object.entries(deptCounts).sort((a,b)=>b[1]-a[1]);
+  makeChart('chartDept','bar',{
+    labels: deptEntries.map(e=>e[0]),
+    datasets:[{label:'Единиц техники', data: deptEntries.map(e=>e[1]), backgroundColor:'#7c3aed'}]
+  },{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}});
+
+  const recent = [...DB.movements].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,10);
+  const feedColors = {receive:'#2563eb',issue:'#16a34a',return:'#0891b2',repair_out:'#d97706',writeoff:'#dc2626'};
+  document.getElementById('recentFeed').innerHTML = recent.length ? recent.map(m=>{
+    const eq = getEquip(m.equipId);
+    return `<div class="feed-item">
+      <span class="feed-dot" style="background:${feedColors[m.type]}"></span>
+      <div class="feed-text"><b>${MOVEMENT_TYPE[m.type].label}</b> — ${escapeHtml(eq?eq.name:'—')} (${escapeHtml(eq?eq.serial:'—')})<br>
+      <span class="feed-date">${formatDate(m.date)} · ${escapeHtml(m.from)} → ${escapeHtml(m.to)}</span></div>
+    </div>`;
+  }).join('') : `<div class="empty-state">Нет операций</div>`;
+}
+
+function makeChart(canvasId, type, data, options){
+  const ctx = document.getElementById(canvasId);
+  if(!ctx) return;
+  if(chartInstances[canvasId]) chartInstances[canvasId].destroy();
+  chartInstances[canvasId] = new Chart(ctx, {type, data, options});
+}
+
+/* ============================= RENDER: REGISTRY ============================= */
+function equipRowHtml(e){
+  const u = getUser(e.molId);
+  return `<tr class="clickable" data-open-equip="${e.id}">
+    <td>${escapeHtml(e.name)}</td>
+    <td>${escapeHtml(e.serial)}</td>
+    <td>${escapeHtml(e.inv)}</td>
+    <td><span class="badge ${STATUS[e.status].badge}">${STATUS[e.status].label}</span></td>
+    <td>${e.userId? escapeHtml(userName(e.userId)) : '—'}</td>
+    <td>${escapeHtml(u?u.name:'—')}</td>
+  </tr>`;
+}
+
+function filterEquipmentList(list, filters){
+  const {status, mol, text} = filters;
+  return list.filter(e=>{
+    if(status && e.status!==status) return false;
+    if(mol && e.molId!==mol) return false;
+    if(text){
+      const t = text.toLowerCase();
+      const hay = [e.name,e.serial,e.inv, e.userId?userName(e.userId):''].join(' ').toLowerCase();
+      if(!hay.includes(t)) return false;
+    }
+    return true;
+  });
+}
+
+function molOptionsHtml(selected){
+  return DB.users.filter(u=>u.isMol).map(u=>`<option value="${u.id}" ${u.id===selected?'selected':''}>${escapeHtml(u.name)}</option>`).join('');
+}
+function statusOptionsHtml(selected){
+  return Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${k===selected?'selected':''}>${v.label}</option>`).join('');
+}
+
+function renderRegistryOverview(){
+  const html = `
+  <h2 class="page-title">Реестр техники</h2>
+  <p class="page-sub">Полный список техники компании по категориям</p>
+  <div class="toolbar">
+    <button class="btn btn-primary" data-action="open-add-equip">+ Добавить технику</button>
+  </div>
+  <div id="accordionRoot"></div>`;
+  document.getElementById('content').innerHTML = html;
+
+  const root = document.getElementById('accordionRoot');
+  root.innerHTML = CATEGORIES.map(cat=>{
+    const items = DB.equipment.filter(e=>e.category===cat.key);
+    return `<div class="accordion-item">
+      <div class="accordion-head" data-acc-toggle="${cat.key}">
+        <span class="caret">▶</span>
+        <span class="title">${cat.icon} ${escapeHtml(cat.label)}</span>
+        <span class="count">${items.length}</span>
+      </div>
+      <div class="accordion-body" data-acc-body="${cat.key}">
+        ${items.length? `<div class="table-wrap"><table><thead><tr><th>Модель</th><th>Серийный №</th><th>Инв. №</th><th>Статус</th><th>Пользователь</th><th>МОЛ</th></tr></thead><tbody>${items.map(equipRowHtml).join('')}</tbody></table></div>` : `<div class="empty-state">В этой категории пока нет техники</div>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderRegistryCategory(catKey){
+  const cat = CATEGORIES.find(c=>c.key===catKey);
+  const filters = route.params.filters || {status:'', mol:'', text:''};
+  route.params.filters = filters;
+  const items = filterEquipmentList(DB.equipment.filter(e=>e.category===catKey), filters);
+
+  const html = `
+  <h2 class="page-title">${cat.icon} ${escapeHtml(cat.label)}</h2>
+  <p class="page-sub">Категория реестра техники</p>
+  <div class="toolbar">
+    <input type="text" class="grow" id="fText" placeholder="Поиск: модель, серийный №, инв. №, пользователь…" value="${escapeHtml(filters.text)}">
+    <select id="fStatus"><option value="">Все статусы</option>${statusOptionsHtml(filters.status)}</select>
+    <select id="fMol"><option value="">Все МОЛ</option>${molOptionsHtml(filters.mol)}</select>
+    <button class="btn btn-primary" data-action="open-add-equip" data-precat="${catKey}">+ Добавить технику</button>
+  </div>
+  <div class="card">
+    <div class="table-wrap">
+    <table><thead><tr><th>Модель</th><th>Серийный №</th><th>Инв. №</th><th>Статус</th><th>Пользователь</th><th>МОЛ</th></tr></thead>
+    <tbody>${items.length? items.map(equipRowHtml).join('') : `<tr><td colspan="6"><div class="empty-state">Ничего не найдено</div></td></tr>`}</tbody></table>
+    </div>
+  </div>`;
+  document.getElementById('content').innerHTML = html;
+
+  document.getElementById('fText').addEventListener('input', e=>{ filters.text = e.target.value; renderRegistryCategory(catKey); });
+  document.getElementById('fStatus').addEventListener('change', e=>{ filters.status = e.target.value; renderRegistryCategory(catKey); });
+  document.getElementById('fMol').addEventListener('change', e=>{ filters.mol = e.target.value; renderRegistryCategory(catKey); });
+  // restore focus/cursor after re-render is skipped intentionally to keep code simple
+}
+
+/* ============================= EQUIPMENT MODAL ============================= */
+function openEquipModal(id){
+  const e = getEquip(id);
+  if(!e) return;
+  const moves = DB.movements.filter(m=>m.equipId===id).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const html = `
+  <div class="modal-header"><h3>${escapeHtml(e.name)}</h3><button class="modal-close" data-action="close-modal">✕</button></div>
+  <div class="modal-body">
+    <div class="detail-grid">
+      <div><div class="d-label">Категория</div><div class="d-value">${CAT_LABEL[e.category]}</div></div>
+      <div><div class="d-label">Статус</div><div class="d-value"><span class="badge ${STATUS[e.status].badge}">${STATUS[e.status].label}</span></div></div>
+      <div><div class="d-label">Серийный номер</div><div class="d-value">${escapeHtml(e.serial)}</div></div>
+      <div><div class="d-label">Инвентарный номер</div><div class="d-value">${escapeHtml(e.inv)}</div></div>
+      <div><div class="d-label">Стоимость</div><div class="d-value">${formatMoney(e.cost)}</div></div>
+      <div><div class="d-label">Дата приёма</div><div class="d-value">${formatDate(e.purchaseDate)}</div></div>
+      <div><div class="d-label">Пользователь</div><div class="d-value">${e.userId?escapeHtml(userName(e.userId)):'—'}</div></div>
+      <div><div class="d-label">МОЛ</div><div class="d-value">${escapeHtml(userName(e.molId))}</div></div>
+    </div>
+    <h3 style="font-size:14px;margin-bottom:10px;">История перемещений</h3>
+    <ul class="timeline">
+      ${moves.length? moves.map(m=>`<li>
+        <div class="t-date">${formatDate(m.date)}</div>
+        <div class="t-title">${MOVEMENT_TYPE[m.type].label}</div>
+        <div class="t-desc">${escapeHtml(m.from)} → ${escapeHtml(m.to)}${m.comment? ' · '+escapeHtml(m.comment):''}</div>
+      </li>`).join('') : '<li><div class="t-desc">Нет записей</div></li>'}
+    </ul>
+  </div>
+  <div class="modal-footer">
+    ${e.status!=='writeoff' ? `<button class="btn btn-danger" data-action="writeoff-equip" data-id="${e.id}">Списать технику</button>` : ''}
+    <button class="btn" data-action="close-modal">Закрыть</button>
+  </div>`;
+  openModal(html);
+}
+
+function writeoffEquip(id){
+  const e = getEquip(id);
+  if(!e || e.status==='writeoff') return;
+  if(!confirm(`Списать «${e.name}» (${e.serial})? Это действие необратимо в MVP.`)) return;
+  const fromLoc = e.status==='issued' && e.userId ? userName(e.userId) : (e.status==='repair' ? 'Сервисный центр' : 'Склад');
+  e.status = 'writeoff'; e.userId = null;
+  DB.movements.push({id:uid('mv'), equipId:id, type:'writeoff', date:todayISO(), from:fromLoc, to:'Списано', molId:e.molId, userId:null, comment:'Списание из карточки техники'});
+  saveDB();
+  toast('Техника списана');
+  closeModal();
+  render();
+}
+
+/* ============================= ADD EQUIPMENT MODAL ============================= */
+function openAddEquipModal(precat){
+  const html = `
+  <div class="modal-header"><h3>Добавить технику</h3><button class="modal-close" data-action="close-modal">✕</button></div>
+  <div class="modal-body">
+    <form id="addEquipForm" class="form-grid">
+      <div class="form-field"><label>Категория</label>
+        <select name="category" required>${CATEGORIES.map(c=>`<option value="${c.key}" ${c.key===precat?'selected':''}>${c.label}</option>`).join('')}</select>
+      </div>
+      <div class="form-field"><label>Модель / наименование</label><input name="name" required placeholder="Например: Dell Latitude 5420"></div>
+      <div class="form-field"><label>Серийный номер</label><input name="serial" required></div>
+      <div class="form-field"><label>Инвентарный номер</label><input name="inv" required></div>
+      <div class="form-field"><label>Стоимость, ₸</label><input name="cost" type="number" min="0" required></div>
+      <div class="form-field"><label>Дата приёма</label><input name="purchaseDate" type="date" value="${todayISO()}" required></div>
+      <div class="form-field full"><label>Ответственное МОЛ</label><select name="molId" required>${molOptionsHtml('')}</select></div>
+    </form>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" data-action="close-modal">Отмена</button>
+    <button class="btn btn-primary" data-action="submit-add-equip">Добавить</button>
+  </div>`;
+  openModal(html);
+}
+function submitAddEquip(){
+  const form = document.getElementById('addEquipForm');
+  if(!form.reportValidity()) return;
+  const fd = new FormData(form);
+  const id = uid('eq');
+  const eq = {
+    id, category:fd.get('category'), name:fd.get('name').trim(), serial:fd.get('serial').trim(),
+    inv:fd.get('inv').trim(), cost:Number(fd.get('cost')), purchaseDate:fd.get('purchaseDate'),
+    status:'in_stock', userId:null, molId:fd.get('molId')
+  };
+  DB.equipment.push(eq);
+  DB.movements.push({id:uid('mv'), equipId:id, type:'receive', date:eq.purchaseDate, from:'Поставщик', to:'Склад', molId:eq.molId, userId:null, comment:'Новое поступление (добавлено вручную)'});
+  saveDB();
+  toast('Техника добавлена в реестр');
+  closeModal();
+  render();
+}
+
+/* ============================= WAREHOUSE: RECEIVE ============================= */
+function renderWarehouseReceive(){
+  const scenario = route.params.scenario || 'new';
+  route.params.scenario = scenario;
+  const issuedList = DB.equipment.filter(e=>e.status==='issued');
+  const repairList = DB.equipment.filter(e=>e.status==='repair');
+
+  let formFields = '';
+  if(scenario==='new'){
+    formFields = `
+      <div class="form-field"><label>Категория</label><select name="category" required>${CATEGORIES.map(c=>`<option value="${c.key}">${c.label}</option>`).join('')}</select></div>
+      <div class="form-field"><label>Модель / наименование</label><input name="name" required></div>
+      <div class="form-field"><label>Серийный номер</label><input name="serial" required></div>
+      <div class="form-field"><label>Инвентарный номер</label><input name="inv" required></div>
+      <div class="form-field"><label>Стоимость, ₸</label><input name="cost" type="number" min="0" required></div>
+      <div class="form-field"><label>Дата приёма</label><input name="date" type="date" value="${todayISO()}" required></div>
+      <div class="form-field"><label>Ответственное МОЛ</label><select name="molId" required>${molOptionsHtml('')}</select></div>
+      <div class="form-field full"><label>Комментарий</label><input name="comment" placeholder="Основание поступления (счёт, накладная и т.п.)"></div>
+    `;
+  } else if(scenario==='return_user'){
+    formFields = `
+      <div class="form-field full"><label>Техника (выдана сотрудникам)</label>
+        <select name="equipId" required>${issuedList.map(e=>`<option value="${e.id}">${escapeHtml(e.name)} · ${escapeHtml(e.serial)} — у ${escapeHtml(userName(e.userId))}</option>`).join('')}</select>
+      </div>
+      <div class="form-field"><label>Дата возврата</label><input name="date" type="date" value="${todayISO()}" required></div>
+      <div class="form-field full"><label>Комментарий</label><input name="comment" placeholder="Причина возврата"></div>
+    `;
+    if(!issuedList.length) formFields = `<div class="form-field full"><div class="empty-state">Нет выданной техники для возврата</div></div>`;
+  } else if(scenario==='return_repair'){
+    formFields = `
+      <div class="form-field full"><label>Техника (в ремонте)</label>
+        <select name="equipId" required>${repairList.map(e=>`<option value="${e.id}">${escapeHtml(e.name)} · ${escapeHtml(e.serial)}</option>`).join('')}</select>
+      </div>
+      <div class="form-field"><label>Дата возврата из ремонта</label><input name="date" type="date" value="${todayISO()}" required></div>
+      <div class="form-field full"><label>Комментарий</label><input name="comment" placeholder="Что было отремонтировано"></div>
+    `;
+    if(!repairList.length) formFields = `<div class="form-field full"><div class="empty-state">Нет техники в ремонте</div></div>`;
+  }
+
+  const recentReceives = [...DB.movements].filter(m=>['receive','return'].includes(m.type)).sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,8);
+
+  const html = `
+  <h2 class="page-title">Приём на склад</h2>
+  <p class="page-sub">Новое поступление, возврат от пользователя или возврат из ремонта</p>
+  <div class="toolbar">
+    <button class="btn ${scenario==='new'?'btn-primary':''}" data-action="receive-scenario" data-scenario="new">Новое поступление</button>
+    <button class="btn ${scenario==='return_user'?'btn-primary':''}" data-action="receive-scenario" data-scenario="return_user">Возврат от пользователя</button>
+    <button class="btn ${scenario==='return_repair'?'btn-primary':''}" data-action="receive-scenario" data-scenario="return_repair">Возврат из ремонта</button>
+  </div>
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>Форма приёма</h3>
+      <form id="receiveForm" class="form-grid">${formFields}</form>
+      <div style="margin-top:14px;text-align:right;">
+        <button class="btn btn-primary" data-action="submit-receive" data-scenario="${scenario}">Оформить приём</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Последние приёмы / возвраты</h3>
+      ${recentReceives.length? recentReceives.map(m=>{
+        const eq = getEquip(m.equipId);
+        return `<div class="feed-item"><span class="feed-dot" style="background:${MOVEMENT_TYPE[m.type].color}"></span>
+          <div class="feed-text"><b>${MOVEMENT_TYPE[m.type].label}</b> — ${escapeHtml(eq?eq.name:'—')} (${escapeHtml(eq?eq.serial:'—')})<br>
+          <span class="feed-date">${formatDate(m.date)}</span></div></div>`;
+      }).join('') : '<div class="empty-state">Пока нет операций</div>'}
+    </div>
+  </div>`;
+  document.getElementById('content').innerHTML = html;
+}
+
+function submitReceive(scenario){
+  const form = document.getElementById('receiveForm');
+  if(!form || !form.reportValidity()) return;
+  const fd = new FormData(form);
+  if(scenario==='new'){
+    const id = uid('eq');
+    const eq = {
+      id, category:fd.get('category'), name:fd.get('name').trim(), serial:fd.get('serial').trim(),
+      inv:fd.get('inv').trim(), cost:Number(fd.get('cost')), purchaseDate:fd.get('date'),
+      status:'in_stock', userId:null, molId:fd.get('molId')
+    };
+    DB.equipment.push(eq);
+    DB.movements.push({id:uid('mv'), equipId:id, type:'receive', date:eq.purchaseDate, from:'Поставщик', to:'Склад', molId:eq.molId, userId:null, comment: fd.get('comment')||'Новое поступление'});
+    toast('Новое поступление оформлено');
+  } else if(scenario==='return_user'){
+    const equipId = fd.get('equipId');
+    const eq = getEquip(equipId);
+    if(!eq) return;
+    const fromUser = eq.userId ? userName(eq.userId) : 'Сотрудник';
+    DB.movements.push({id:uid('mv'), equipId, type:'return', date:fd.get('date'), from:fromUser, to:'Склад', molId:eq.molId, userId:eq.userId, comment: fd.get('comment')||'Возврат от пользователя'});
+    eq.status='in_stock'; eq.userId=null;
+    toast('Возврат от пользователя оформлен');
+  } else if(scenario==='return_repair'){
+    const equipId = fd.get('equipId');
+    const eq = getEquip(equipId);
+    if(!eq) return;
+    DB.movements.push({id:uid('mv'), equipId, type:'return', date:fd.get('date'), from:'Сервисный центр', to:'Склад', molId:eq.molId, userId:null, comment: fd.get('comment')||'Возврат из ремонта'});
+    eq.status='in_stock';
+    toast('Возврат из ремонта оформлен');
+  }
+  saveDB();
+  render();
+}
+
+/* ============================= WAREHOUSE: ISSUE ============================= */
+function renderWarehouseIssue(){
+  const available = DB.equipment.filter(e=>e.status==='in_stock');
+  const html = `
+  <h2 class="page-title">Выдача со склада</h2>
+  <p class="page-sub">Оформление выдачи техники сотруднику</p>
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>Форма выдачи</h3>
+      ${available.length ? `
+      <form id="issueForm" class="form-grid">
+        <div class="form-field full"><label>Техника (доступна на складе)</label>
+          <select name="equipId" id="issueEquipSelect" required>${available.map(e=>`<option value="${e.id}">${escapeHtml(e.name)} · ${escapeHtml(e.serial)} · ${CAT_LABEL[e.category]}</option>`).join('')}</select>
+        </div>
+        <div class="form-field full"><label>Сотрудник-получатель</label>
+          <select name="userId" id="issueUserSelect" required>${DB.users.map(u=>`<option value="${u.id}">${escapeHtml(u.name)} (${escapeHtml(u.dept)})</option>`).join('')}</select>
+        </div>
+        <div class="form-field"><label>Подразделение получателя</label><div class="readonly-note" id="issueDeptNote">—</div></div>
+        <div class="form-field"><label>Ответственное МОЛ</label><select name="molId" required>${molOptionsHtml('')}</select></div>
+        <div class="form-field"><label>Дата выдачи</label><input name="date" type="date" value="${todayISO()}" required></div>
+        <div class="form-field full"><label>Комментарий</label><input name="comment" placeholder="Основание выдачи"></div>
+      </form>
+      <div style="margin-top:14px;text-align:right;"><button class="btn btn-primary" data-action="submit-issue">Оформить выдачу</button></div>
+      ` : `<div class="empty-state">Нет свободной техники на складе для выдачи</div>`}
+    </div>
+    <div class="card">
+      <h3>Свободная техника на складе (${available.length})</h3>
+      <div class="table-wrap"><table><thead><tr><th>Модель</th><th>Серийный №</th><th>Категория</th></tr></thead>
+      <tbody>${available.length? available.map(e=>`<tr><td>${escapeHtml(e.name)}</td><td>${escapeHtml(e.serial)}</td><td>${CAT_LABEL[e.category]}</td></tr>`).join('') : `<tr><td colspan="3"><div class="empty-state">Пусто</div></td></tr>`}</tbody></table></div>
+    </div>
+  </div>`;
+  document.getElementById('content').innerHTML = html;
+
+  const userSel = document.getElementById('issueUserSelect');
+  const deptNote = document.getElementById('issueDeptNote');
+  function updateDept(){
+    const u = getUser(userSel.value);
+    deptNote.textContent = u ? u.dept : '—';
+  }
+  if(userSel){ updateDept(); userSel.addEventListener('change', updateDept); }
+}
+
+function submitIssue(){
+  const form = document.getElementById('issueForm');
+  if(!form || !form.reportValidity()) return;
+  const fd = new FormData(form);
+  const equipId = fd.get('equipId');
+  const eq = getEquip(equipId);
+  if(!eq) return;
+  const userId = fd.get('userId');
+  eq.status='issued'; eq.userId=userId; eq.molId=fd.get('molId');
+  DB.movements.push({id:uid('mv'), equipId, type:'issue', date:fd.get('date'), from:'Склад', to:userName(userId), molId:eq.molId, userId, comment: fd.get('comment')||'Выдача сотруднику'});
+  saveDB();
+  toast('Техника выдана сотруднику');
+  render();
+}
+
+/* ============================= HISTORY ============================= */
+function renderHistory(){
+  const filters = route.params.filters || {type:'', from:'', to:'', text:''};
+  route.params.filters = filters;
+
+  let list = [...DB.movements];
+  if(filters.type) list = list.filter(m=>m.type===filters.type);
+  if(filters.from) list = list.filter(m=>m.date>=filters.from);
+  if(filters.to) list = list.filter(m=>m.date<=filters.to);
+  if(filters.text){
+    const t = filters.text.toLowerCase();
+    list = list.filter(m=>{
+      const eq = getEquip(m.equipId);
+      const hay = [eq?eq.name:'', eq?eq.serial:'', m.from, m.to, userName(m.molId), m.comment].join(' ').toLowerCase();
+      return hay.includes(t);
+    });
+  }
+  list.sort((a,b)=>new Date(b.date)-new Date(a.date));
+
+  const totalPages = Math.max(1, Math.ceil(list.length/HISTORY_PAGE_SIZE));
+  if(historyPage>totalPages) historyPage = totalPages;
+  const pageItems = list.slice((historyPage-1)*HISTORY_PAGE_SIZE, historyPage*HISTORY_PAGE_SIZE);
+
+  const html = `
+  <h2 class="page-title">История передвижений</h2>
+  <p class="page-sub">Полный аудиторский журнал операций с техникой (найдено: ${list.length})</p>
+  <div class="toolbar">
+    <input type="text" class="grow" id="hText" placeholder="Поиск по журналу…" value="${escapeHtml(filters.text)}">
+    <select id="hType"><option value="">Все типы операций</option>${Object.entries(MOVEMENT_TYPE).map(([k,v])=>`<option value="${k}" ${k===filters.type?'selected':''}>${v.label}</option>`).join('')}</select>
+    <input type="date" id="hFrom" value="${filters.from}" title="Дата с">
+    <input type="date" id="hTo" value="${filters.to}" title="Дата по">
+    <button class="btn" id="hExport">⬇ Экспорт CSV</button>
+  </div>
+  <div class="card">
+    <div class="table-wrap">
+    <table><thead><tr><th>Дата</th><th>Тип</th><th>Техника</th><th>Откуда</th><th>Куда</th><th>МОЛ</th><th>Комментарий</th></tr></thead>
+    <tbody>${pageItems.length? pageItems.map(m=>{
+      const eq = getEquip(m.equipId);
+      return `<tr><td>${formatDate(m.date)}</td><td>${MOVEMENT_TYPE[m.type].label}</td><td>${escapeHtml(eq?eq.name+' · '+eq.serial:'—')}</td><td>${escapeHtml(m.from)}</td><td>${escapeHtml(m.to)}</td><td>${escapeHtml(userName(m.molId))}</td><td>${escapeHtml(m.comment||'')}</td></tr>`;
+    }).join('') : `<tr><td colspan="7"><div class="empty-state">Ничего не найдено</div></td></tr>`}</tbody></table>
+    </div>
+    <div class="pagination">
+      <button class="btn btn-sm" id="hPrev" ${historyPage<=1?'disabled':''}>← Назад</button>
+      <span>Стр. ${historyPage} из ${totalPages}</span>
+      <button class="btn btn-sm" id="hNext" ${historyPage>=totalPages?'disabled':''}>Вперёд →</button>
+    </div>
+  </div>`;
+  document.getElementById('content').innerHTML = html;
+
+  document.getElementById('hText').addEventListener('input', e=>{ filters.text=e.target.value; historyPage=1; renderHistory(); });
+  document.getElementById('hType').addEventListener('change', e=>{ filters.type=e.target.value; historyPage=1; renderHistory(); });
+  document.getElementById('hFrom').addEventListener('change', e=>{ filters.from=e.target.value; historyPage=1; renderHistory(); });
+  document.getElementById('hTo').addEventListener('change', e=>{ filters.to=e.target.value; historyPage=1; renderHistory(); });
+  document.getElementById('hExport').addEventListener('click', exportMovementsCSV);
+  document.getElementById('hPrev').addEventListener('click', ()=>{ if(historyPage>1){historyPage--; renderHistory();} });
+  document.getElementById('hNext').addEventListener('click', ()=>{ if(historyPage<totalPages){historyPage++; renderHistory();} });
+}
+
+/* ============================= USERS ============================= */
+function renderUsersList(){
+  const html = `
+  <h2 class="page-title">Пользователи техники</h2>
+  <p class="page-sub">Список сотрудников компании и закреплённой за ними техники</p>
+  <div class="toolbar"><button class="btn btn-primary" data-action="open-add-user">+ Добавить пользователя</button></div>
+  <div class="card">
+    <div class="table-wrap">
+    <table><thead><tr><th>ФИО</th><th>Подразделение</th><th>Должность</th><th>Техники закреплено</th><th>МОЛ</th></tr></thead>
+    <tbody>${DB.users.map(u=>{
+      const count = DB.equipment.filter(e=>e.userId===u.id && e.status!=='writeoff').length;
+      return `<tr><td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.dept)}</td><td>${escapeHtml(u.position)}</td><td>${count}</td><td>${u.isMol?'<span class="badge badge-mol">МОЛ</span>':'—'}</td></tr>`;
+    }).join('')}</tbody></table>
+    </div>
+  </div>`;
+  document.getElementById('content').innerHTML = html;
+}
+
+function renderUsersMol(){
+  const mols = DB.users.filter(u=>u.isMol);
+  const nonMols = DB.users.filter(u=>!u.isMol);
+  const html = `
+  <h2 class="page-title">Материально ответственные лица</h2>
+  <p class="page-sub">Техника, закреплённая за каждым МОЛ</p>
+  <div class="toolbar">
+    <select id="assignMolSelect"><option value="">Назначить МОЛ сотрудника…</option>${nonMols.map(u=>`<option value="${u.id}">${escapeHtml(u.name)} (${escapeHtml(u.dept)})</option>`).join('')}</select>
+    <button class="btn btn-primary" id="assignMolBtn">Назначить МОЛ</button>
+  </div>
+  <div class="grid grid-2">
+    ${mols.map(m=>{
+      const items = DB.equipment.filter(e=>e.molId===m.id && e.status!=='writeoff');
+      const stock = items.filter(e=>e.status==='in_stock').length;
+      const issued = items.filter(e=>e.status==='issued').length;
+      return `<div class="card">
+        <h3>${escapeHtml(m.name)}</h3>
+        <p class="page-sub" style="margin:-8px 0 12px;">${escapeHtml(m.position)} · ${escapeHtml(m.dept)}</p>
+        <div class="grid grid-kpi">
+          <div class="kpi-card"><div class="kpi-label">Всего под ответственностью</div><div class="kpi-value">${items.length}</div></div>
+          <div class="kpi-card"><div class="kpi-label">На складе</div><div class="kpi-value">${stock}</div></div>
+          <div class="kpi-card"><div class="kpi-label">Выдано</div><div class="kpi-value">${issued}</div></div>
+        </div>
+      </div>`;
+    }).join('') || '<div class="empty-state">Нет назначенных МОЛ</div>'}
+  </div>`;
+  document.getElementById('content').innerHTML = html;
+
+  document.getElementById('assignMolBtn').addEventListener('click', ()=>{
+    const sel = document.getElementById('assignMolSelect');
+    if(!sel.value){ toast('Выберите сотрудника'); return; }
+    const u = getUser(sel.value);
+    u.isMol = true;
+    saveDB();
+    toast(`${u.name} назначен(а) МОЛ`);
+    renderUsersMol();
+    renderTree();
+  });
+}
+
+function openAddUserModal(){
+  const html = `
+  <div class="modal-header"><h3>Добавить пользователя</h3><button class="modal-close" data-action="close-modal">✕</button></div>
+  <div class="modal-body">
+    <form id="addUserForm" class="form-grid">
+      <div class="form-field full"><label>ФИО</label><input name="name" required></div>
+      <div class="form-field"><label>Подразделение</label>
+        <select name="dept" required>${DEPTS.map(d=>`<option value="${d}">${d}</option>`).join('')}</select>
+      </div>
+      <div class="form-field"><label>Должность</label><input name="position" required></div>
+      <div class="form-radio-group"><label><input type="checkbox" name="isMol"> Назначить материально ответственным лицом (МОЛ)</label></div>
+    </form>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" data-action="close-modal">Отмена</button>
+    <button class="btn btn-primary" data-action="submit-add-user">Добавить</button>
+  </div>`;
+  openModal(html);
+}
+function submitAddUser(){
+  const form = document.getElementById('addUserForm');
+  if(!form.reportValidity()) return;
+  const fd = new FormData(form);
+  DB.users.push({id:uid('u'), name:fd.get('name').trim(), dept:fd.get('dept'), position:fd.get('position').trim(), isMol: fd.get('isMol')==='on'});
+  saveDB();
+  toast('Пользователь добавлен');
+  closeModal();
+  render();
+  renderTree();
+}
+
+/* ============================= ANALYTICS ============================= */
+function renderAnalytics(){
+  const active = DB.equipment.filter(e=>e.status!=='writeoff');
+  const totalCost = active.reduce((s,e)=>s+e.cost,0);
+  const avgAge = active.length ? active.reduce((s,e)=>s+ageYears(e.purchaseDate),0)/active.length : 0;
+  const molCount = DB.users.filter(u=>u.isMol).length;
+
+  const html = `
+  <h2 class="page-title">Аналитика и отчёты</h2>
+  <p class="page-sub">Сводная аналитика для руководства компании</p>
+  <div class="grid grid-kpi" style="margin-bottom:20px;">
+    <div class="card kpi-card kpi-total"><div class="kpi-label">Балансовая стоимость парка</div><div class="kpi-value" style="font-size:20px;">${formatMoney(totalCost)}</div></div>
+    <div class="card kpi-card kpi-stock"><div class="kpi-label">Средний возраст техники</div><div class="kpi-value">${avgAge.toFixed(1)} лет</div></div>
+    <div class="card kpi-card kpi-issued"><div class="kpi-label">Всего операций</div><div class="kpi-value">${DB.movements.length}</div></div>
+    <div class="card kpi-card kpi-repair"><div class="kpi-label">Назначено МОЛ</div><div class="kpi-value">${molCount}</div></div>
+  </div>
+  <div class="grid grid-2" style="margin-bottom:16px;">
+    <div class="card"><h3>Стоимость парка по категориям</h3><div class="chart-wrap"><canvas id="chartCostByCat"></canvas></div></div>
+    <div class="card"><h3>Распределение по возрасту эксплуатации</h3><div class="chart-wrap"><canvas id="chartAge"></canvas></div></div>
+  </div>
+  <div class="grid grid-2" style="margin-bottom:16px;">
+    <div class="card"><h3>Операции по типам</h3><div class="chart-wrap short"><canvas id="chartOpsByType"></canvas></div></div>
+    <div class="card"><h3>Топ-6 подразделений по технике</h3><div class="chart-wrap short"><canvas id="chartTopDepts"></canvas></div></div>
+  </div>
+  <div class="card">
+    <h3>Выгрузка отчётов</h3>
+    <div class="toolbar" style="margin-bottom:0;">
+      <button class="btn btn-primary" id="expMovements">⬇ Сводный отчёт по движению (CSV)</button>
+      <button class="btn" id="expRegistry2">⬇ Полный реестр техники (CSV)</button>
+    </div>
+  </div>`;
+  document.getElementById('content').innerHTML = html;
+
+  makeChart('chartCostByCat','bar',{
+    labels: CATEGORIES.map(c=>c.label),
+    datasets:[{label:'Стоимость, ₸', data: CATEGORIES.map(c=> active.filter(e=>e.category===c.key).reduce((s,e)=>s+e.cost,0)), backgroundColor:'#2563eb'}]
+  },{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}});
+
+  const ageBuckets = [
+    {label:'до 1 года', test:a=>a<1},
+    {label:'1–2 года', test:a=>a>=1&&a<2},
+    {label:'2–3 года', test:a=>a>=2&&a<3},
+    {label:'более 3 лет', test:a=>a>=3},
+  ];
+  const ageCounts = ageBuckets.map(b=> active.filter(e=>b.test(ageYears(e.purchaseDate))).length);
+  makeChart('chartAge','pie',{
+    labels: ageBuckets.map(b=>b.label),
+    datasets:[{data: ageCounts, backgroundColor:['#16a34a','#0891b2','#d97706','#dc2626']}]
+  },{responsive:true,maintainAspectRatio:false});
+
+  const opsCounts = Object.keys(MOVEMENT_TYPE).map(k=> DB.movements.filter(m=>m.type===k).length);
+  makeChart('chartOpsByType','bar',{
+    labels: Object.values(MOVEMENT_TYPE).map(v=>v.label),
+    datasets:[{data:opsCounts, backgroundColor:Object.values(MOVEMENT_TYPE).map(v=>v.color)}]
+  },{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0}}}});
+
+  const deptCounts = {};
+  active.forEach(e=>{
+    const owner = e.status==='issued' && e.userId ? getUser(e.userId) : getUser(e.molId);
+    const dept = owner? owner.dept : 'Не указано';
+    deptCounts[dept] = (deptCounts[dept]||0)+1;
+  });
+  const top6 = Object.entries(deptCounts).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  makeChart('chartTopDepts','bar',{
+    labels: top6.map(e=>e[0]),
+    datasets:[{data: top6.map(e=>e[1]), backgroundColor:'#db2777'}]
+  },{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0}}}});
+
+  document.getElementById('expMovements').addEventListener('click', exportMovementsCSV);
+  document.getElementById('expRegistry2').addEventListener('click', exportRegistryCSV);
+}
+
+/* ============================= MAIN RENDER DISPATCH ============================= */
+const PAGE_TITLES = {
+  dashboard:'Дашборд', registry:'Реестр техники', 'warehouse-receive':'Приём на склад',
+  'warehouse-issue':'Выдача со склада', history:'История передвижений', 'users-list':'Пользователи техники',
+  'users-mol':'Материально ответственные лица', analytics:'Аналитика и отчёты'
+};
+
+function render(){
+  renderTree();
+  const view = route.view;
+  let title = PAGE_TITLES[view];
+  if(view.startsWith('registry-')){
+    const catKey = view.replace('registry-','');
+    title = CAT_LABEL[catKey] || 'Реестр техники';
+    renderRegistryCategory(catKey);
+  } else {
+    switch(view){
+      case 'dashboard': renderDashboard(); break;
+      case 'registry': renderRegistryOverview(); break;
+      case 'warehouse-receive': renderWarehouseReceive(); break;
+      case 'warehouse-issue': renderWarehouseIssue(); break;
+      case 'history': renderHistory(); break;
+      case 'users-list': renderUsersList(); break;
+      case 'users-mol': renderUsersMol(); break;
+      case 'analytics': renderAnalytics(); break;
+      default: renderDashboard(); title='Дашборд';
+    }
+  }
+  document.getElementById('pageHeaderTitle').textContent = title || '';
+}
+
+/* ============================= EVENT DELEGATION ============================= */
+document.addEventListener('click', function(e){
+  const treeRow = e.target.closest('[data-tree-key]');
+  if(treeRow){
+    const key = treeRow.getAttribute('data-tree-key');
+    const hasChildren = treeRow.getAttribute('data-has-children')==='true';
+    if(hasChildren){
+      treeOpenState[key] = !treeOpenState[key];
+    }
+    // navigate to leaf views; parent-only nodes (registry, warehouse, peopleroot) just toggle
+    if(['registry','warehouse','peopleroot'].includes(key)){
+      renderTree();
+      return;
+    }
+    navigate(key);
+    return;
+  }
+
+  const accHead = e.target.closest('[data-acc-toggle]');
+  if(accHead){
+    const key = accHead.getAttribute('data-acc-toggle');
+    const body = document.querySelector(`[data-acc-body="${key}"]`);
+    const caret = accHead.querySelector('.caret');
+    body.classList.toggle('open');
+    caret.classList.toggle('open');
+    return;
+  }
+
+  const equipRow = e.target.closest('[data-open-equip]');
+  if(equipRow){ openEquipModal(equipRow.getAttribute('data-open-equip')); return; }
+
+  const actionEl = e.target.closest('[data-action]');
+  if(actionEl){
+    const action = actionEl.getAttribute('data-action');
+    switch(action){
+      case 'open-add-equip': openAddEquipModal(actionEl.getAttribute('data-precat')||''); break;
+      case 'submit-add-equip': submitAddEquip(); break;
+      case 'writeoff-equip': writeoffEquip(actionEl.getAttribute('data-id')); break;
+      case 'close-modal': closeModal(); break;
+      case 'open-add-user': openAddUserModal(); break;
+      case 'submit-add-user': submitAddUser(); break;
+      case 'receive-scenario':
+        route.params.scenario = actionEl.getAttribute('data-scenario');
+        renderWarehouseReceive();
+        break;
+      case 'submit-receive': submitReceive(actionEl.getAttribute('data-scenario')); break;
+      case 'submit-issue': submitIssue(); break;
+    }
+    return;
+  }
+
+  if(e.target.id==='modalOverlay'){ closeModal(); }
+});
+
+document.getElementById('hamburgerBtn').addEventListener('click', openSidebar);
+document.getElementById('backdrop').addEventListener('click', closeSidebar);
+document.getElementById('exportRegistryBtn').addEventListener('click', exportRegistryCSV);
+document.getElementById('treeSearch').addEventListener('input', e=>{ treeSearchTerm = e.target.value; renderTree(); });
+
+/* ============================= INIT ============================= */
+loadDB();
+render();
+</script>
+</body>
+</html>
